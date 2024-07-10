@@ -48,7 +48,6 @@
 - **CPU**:  Intel 5代处理器（云CPU方面，建议选择 2 核以上的云CPU服务）
   
 - **内存（RAM）**: 至少 4 GB
-  
 
 - **操作系统**：Windows、macOS、Linux均可
 
@@ -97,14 +96,6 @@ python run_gradio.py -model_name='chatglm_std' -embedding_model='m3e' -db_path='
 ### 2、开发流程简述
 
 #### 2.1 当前的项目版本及未来规划
-
- - **当前版本**：0.2.0(更新于2024.3.17)
-   - **更新内容**
-     - [√] 新增 m3e embedding
-     - [√] 新增知识库内容
-     - [√] 新增 Datawhale 的所有 Md 的总结
-     - [√] 修复 gradio 显示错误
- 
    - **目前支持的模型**
      - 文心一言
        - [√] ERNIE-Bot
@@ -117,10 +108,6 @@ python run_gradio.py -model_name='chatglm_std' -embedding_model='m3e' -db_path='
        - [√] chatglm_pro
        - [√] chatglm_std
        - [√] chatglm_lite
-
- - **未来规划**
-   - [ ] 更新 智谱Ai embedding
-
 
 #### 2.2 核心Idea
 
@@ -178,236 +165,15 @@ https://github.com/doyoulackw/Blackstone/tree/master
 
 本节讲述该项目 llm-universe 个人知识库助手：创建知识库并加载文件-读取文件-**文本分割**(Text splitter) ，知识库**文本向量化**(embedding)以及存储到**向量数据库**的实现，
 
-其中**加载文件**：这是读取存储在本地的知识库文件的步骤。**读取文件**：读取加载的文件内容，通常是将其转化为文本格式 。**文本分割(Text splitter)**：按照⼀定的规则(例如段落、句子、词语等)将文本分割。**文本向量化：**这通常涉及到 NLP 的特征抽取，该项目通过本地 m3e 文本嵌入模型，openai，zhipuai 开源 api 等方法将分割好的文本转化为数值向量并存储到向量数据库
+其中**加载文件**：这是读取存储在本地的知识库文件的步骤。**读取文件**：读取加载的文件内容，通常是将其转化为文本格式 。**文本分割(Text splitter)**：按照⼀定的规则(例如段落、句子、词语等)将文本分割。**文本向量化：**这通常涉及到 NLP 的特征抽取，该项目通过zhipuai 开源 api 将分割好的文本转化为数值向量并存储到向量数据库
 
 #### 2.1 知识库搭建-加载和读取
 
-该项目llm-universe个人知识库助手选用 Datawhale 一些经典开源课程、视频（部分）作为示例，具体包括：
+该项目Blackstone个人知识库助手默认知识库包括：
 
-- [《机器学习公式详解》PDF版本](https://github.com/datawhalechina/pumpkin-book/releases)
-- [《面向开发者的 LLM 入门教程 第一部分 Prompt Engineering》md版本](https://github.com/datawhalechina/prompt-engineering-for-developers)
-- [《强化学习入门指南》MP4版本](https://www.bilibili.com/video/BV1HZ4y1v7eX/?spm_id_from=333.999.0.0&vd_source=4922e78f7a24c5981f1ddb6a8ee55ab9)
-- 以及datawhale总仓库所有开源项目的readme https://github.com/datawhalechina
+- [《NLP共性AI算法库》PDF版本](https://github.com/doyoulackw/Blackstone/blob/master/knowledge_db/NLP共性AI算法库.pdf)
 
-这些知识库源数据放置在 **../../data_base/knowledge_db** 目录下，用户也可以自己存放自己其他的文件。
-
-**1**.下面讲一下如何获取 DataWhale 总仓库的所有开源项目的 readme ，用户可以通过先运行 **project/database/test_get_all_repo.py** 文件，用来获取 Datawhale 总仓库所有开源项目的 readme，代码如下：
-
-```python
-import json
-import requests
-import os
-import base64
-import loguru
-from dotenv import load_dotenv
-# 加载环境变量
-load_dotenv()
-# 从环境变量中获取TOKEN
-TOKEN = os.getenv('TOKEN')
-# 定义获取组织仓库的函数
-def get_repos(org_name, token, export_dir):
-    headers = {
-        'Authorization': f'token {token}',
-    }
-    url = f'https://api.github.com/orgs/{org_name}/repos'
-    response = requests.get(url, headers=headers, params={'per_page': 200, 'page': 0})
-    if response.status_code == 200:
-        repos = response.json()
-        loguru.logger.info(f'Fetched {len(repos)} repositories for {org_name}.')
-        # 使用 export_dir 确定保存仓库名的文件路径
-        repositories_path = os.path.join(export_dir, 'repositories.txt')
-        with open(repositories_path, 'w', encoding='utf-8') as file:
-            for repo in repos:
-                file.write(repo['name'] + '\n')
-        return repos
-    else:
-        loguru.logger.error(f"Error fetching repositories: {response.status_code}")
-        loguru.logger.error(response.text)
-        return []
-# 定义拉取仓库README文件的函数
-def fetch_repo_readme(org_name, repo_name, token, export_dir):
-    headers = {
-        'Authorization': f'token {token}',
-    }
-    url = f'https://api.github.com/repos/{org_name}/{repo_name}/readme'
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        readme_content = response.json()['content']
-        # 解码base64内容
-        readme_content = base64.b64decode(readme_content).decode('utf-8')
-        # 使用 export_dir 确定保存 README 的文件路径
-        repo_dir = os.path.join(export_dir, repo_name)
-        if not os.path.exists(repo_dir):
-            os.makedirs(repo_dir)
-        readme_path = os.path.join(repo_dir, 'README.md')
-        with open(readme_path, 'w', encoding='utf-8') as file:
-            file.write(readme_content)
-    else:
-        loguru.logger.error(f"Error fetching README for {repo_name}: {response.status_code}")
-        loguru.logger.error(response.text)
-# 主函数
-if __name__ == '__main__':
-    # 配置组织名称
-    org_name = 'datawhalechina'
-    # 配置 export_dir
-    export_dir = "../../database/readme_db"  # 请替换为实际的目录路径
-    # 获取仓库列表
-    repos = get_repos(org_name, TOKEN, export_dir)
-    # 打印仓库名称
-    if repos:
-        for repo in repos:
-            repo_name = repo['name']
-            # 拉取每个仓库的README
-            fetch_repo_readme(org_name, repo_name, TOKEN, export_dir)
-    # 清理临时文件夹
-    # if os.path.exists('temp'):
-    #     shutil.rmtree('temp')
-```
-
-默认会把这些readme文件放在同目录database下的readme_db文件。其中这些readme文件含有不少无关信息，即再运行**project/database/text_summary_readme.py文件**可以调用大模型生成每个readme文件的摘要并保存到上述知识库目录../../data_base/knowledge_db /readme_summary文件夹中，****。代码如下：
-
-```python
-import os
-from dotenv import load_dotenv
-import openai
-from test_get_all_repo import get_repos
-from bs4 import BeautifulSoup
-import markdown
-import re
-import time
-# Load environment variables
-load_dotenv()
-TOKEN = os.getenv('TOKEN')
-# Set up the OpenAI API client
-openai_api_key = os.environ["OPENAI_API_KEY"]
-
-# 过滤文本中链接防止大语言模型风控
-def remove_urls(text):
-    # 正则表达式模式，用于匹配URL
-    url_pattern = re.compile(r'https?://[^\s]*')
-    # 替换所有匹配的URL为空字符串
-    text = re.sub(url_pattern, '', text)
-    # 正则表达式模式，用于匹配特定的文本
-    specific_text_pattern = re.compile(r'扫描下方二维码关注公众号|提取码|关注|科学上网|回复关键词|侵权|版权|致谢|引用|LICENSE'
-                                       r'|组队打卡|任务打卡|组队学习的那些事|学习周期|开源内容|打卡|组队学习|链接')
-    # 替换所有匹配的特定文本为空字符串
-    text = re.sub(specific_text_pattern, '', text)
-    return text
-
-# 抽取md中的文本
-def extract_text_from_md(md_content):
-    # Convert Markdown to HTML
-    html = markdown.markdown(md_content)
-    # Use BeautifulSoup to extract text
-    soup = BeautifulSoup(html, 'html.parser')
-
-    return remove_urls(soup.get_text())
-
-def generate_llm_summary(repo_name, readme_content,model):
-    prompt = f"1：这个仓库名是 {repo_name}. 此仓库的readme全部内容是: {readme_content}\
-               2:请用约200以内的中文概括这个仓库readme的内容,返回的概括格式要求：这个仓库名是...,这仓库内容主要是..."
-    openai.api_key = openai_api_key
-    # 具体调用
-    messages = [{"role": "system", "content": "你是一个人工智能助手"},
-                {"role": "user", "content": prompt}]
-    response = openai.ChatCompletion.create(
-        model=model,
-        messages=messages,
-    )
-    return response.choices[0].message["content"]
-
-def main(org_name,export_dir,summary_dir,model):
-    repos = get_repos(org_name, TOKEN, export_dir)
-
-    # Create a directory to save summaries
-    os.makedirs(summary_dir, exist_ok=True)
-
-    for id, repo in enumerate(repos):
-        repo_name = repo['name']
-        readme_path = os.path.join(export_dir, repo_name, 'README.md')
-        print(repo_name)
-        if os.path.exists(readme_path):
-            with open(readme_path, 'r', encoding='utf-8') as file:
-                readme_content = file.read()
-            # Extract text from the README
-            readme_text = extract_text_from_md(readme_content)
-            # Generate a summary for the README
-            # 访问受限，每min一次
-            time.sleep(60)
-            print('第' + str(id) + '条' + 'summary开始')
-            try:
-                summary = generate_llm_summary(repo_name, readme_text,model)
-                print(summary)
-                # Write summary to a Markdown file in the summary directory
-                summary_file_path = os.path.join(summary_dir, f"{repo_name}_summary.md")
-                with open(summary_file_path, 'w', encoding='utf-8') as summary_file:
-                    summary_file.write(f"# {repo_name} Summary\n\n")
-                    summary_file.write(summary)
-            except openai.OpenAIError as e:
-                summary_file_path = os.path.join(summary_dir, f"{repo_name}_summary风控.md")
-                with open(summary_file_path, 'w', encoding='utf-8') as summary_file:
-                    summary_file.write(f"# {repo_name} Summary风控\n\n")
-                    summary_file.write("README内容风控。\n")
-                print(f"Error generating summary for {repo_name}: {e}")
-                # print(readme_text)
-        else:
-            print(f"文件不存在: {readme_path}")
-            # If README doesn't exist, create an empty Markdown file
-            summary_file_path = os.path.join(summary_dir, f"{repo_name}_summary不存在.md")
-            with open(summary_file_path, 'w', encoding='utf-8') as summary_file:
-                summary_file.write(f"# {repo_name} Summary不存在\n\n")
-                summary_file.write("README文件不存在。\n")
-if __name__ == '__main__':
-    # 配置组织名称
-    org_name = 'datawhalechina'
-    # 配置 export_dir
-    export_dir = "../database/readme_db"  # 请替换为实际readme的目录路径
-    summary_dir="../../data_base/knowledge_db/readme_summary"# 请替换为实际readme的概括的目录路径
-    model="gpt-3.5-turbo"  #deepseek-chat,gpt-3.5-turbo,moonshot-v1-8k
-    main(org_name,export_dir,summary_dir,model)
-
-```
-
-其中 **extract_text_from_md()** 函数用来抽取 md 文件中的文本， **remove_urls()** 函数过滤了 readme 文本中的一些网页链接以及过滤了可能引起大模型风控一些词汇。接着调用 generate_llm_summary() 让大模型生成每个 readme 的概括。
-
-**2**.在上述知识库构建完毕之后，**../../data_base/knowledge_db** 目录下就有了 Datawhale 开源的所有项目的 readme 概括的 md 文件，以及[《机器学习公式详解》PDF版本](https://github.com/datawhalechina/pumpkin-book/releases)，[《面向开发者的 LLM 入门教程 第一部分 Prompt Engineering》md版本](https://github.com/datawhalechina/prompt-engineering-for-developers)，[《强化学习入门指南》MP4版本](https://www.bilibili.com/video/BV1HZ4y1v7eX/?spm_id_from=333.999.0.0&vd_source=4922e78f7a24c5981f1ddb6a8ee55ab9)等文件。
-
-其中有 mp4 格式，md 格式，以及 pdf 格式，对这些文件的加载方式，该项目将代码放在了 **project/database/create_db.py文件** 下，部分代码如下。其中 pdf 格式文件用 PyMuPDFLoader 加载器，md格式文件用UnstructuredMarkdownLoader加载器。要注意的是其实数据处理是一件非常复杂和业务个性化的事，如pdf文件中包含图表，图片和文字以及不同层次标题，这些都需要根据业务进行精细化处理。具体操作可以关注**第二部分的高阶RAG教程技术**进行自行摸索：
-
-```python
-from langchain.document_loaders import UnstructuredFileLoader
-from langchain.document_loaders import UnstructuredMarkdownLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.document_loaders import PyMuPDFLoader
-from langchain.vectorstores import Chroma
-# 首先实现基本配置
-
-DEFAULT_DB_PATH = "../../data_base/knowledge_db"
-DEFAULT_PERSIST_PATH = "../../data_base/vector_db"
-... 
-...
-...
-def file_loader(file, loaders):
-    if isinstance(file, tempfile._TemporaryFileWrapper):
-        file = file.name
-    if not os.path.isfile(file):
-        [file_loader(os.path.join(file, f), loaders) for f in  os.listdir(file)]
-        return
-    file_type = file.split('.')[-1]
-    if file_type == 'pdf':
-        loaders.append(PyMuPDFLoader(file))
-    elif file_type == 'md':
-        pattern = r"不存在|风控"
-        match = re.search(pattern, file)
-        if not match:
-            loaders.append(UnstructuredMarkdownLoader(file))
-    elif file_type == 'txt':
-        loaders.append(UnstructuredFileLoader(file))
-    return
-...
-...
-
-```
+这些知识库源数据放置在 **./knowledge_db** 目录下，用户也可以自己存放自己其他的文件。
 
 #### 2.2 文本分割和向量化
 
@@ -453,7 +219,7 @@ def create_db(files=DEFAULT_DB_PATH, persist_directory=DEFAULT_PERSIST_PATH, emb
 ...........    
 ```
 
-**2.** 而在切分好知识库文本之后，需要对文本进行 **向量化** 。该项目在 **project/embedding/call_embedding.py** ，文本嵌入方式可选本地 m3e 模型，以及调用 openai 和 zhipuai 的 api 的方式进行文本嵌入。代码如下：
+**2.** 而在切分好知识库文本之后，需要对文本进行 **向量化** 。该项目在 **project/embedding/call_embedding.py** ，文本嵌入方式可调用 zhipuai 的 api 的方式进行文本嵌入。代码如下：
 
 ```python
 import os
@@ -535,59 +301,7 @@ def create_db(files=DEFAULT_DB_PATH, persist_directory=DEFAULT_PERSIST_PATH, emb
 
 #### 3.1 向量数据库检索
 
-通过上一章节文本的分割向量化以及构建向量数据库索引，接下去就可以利用向量数据库来进行高效的检索。向量数据库是一种用于有效搜索大规模高维向量空间中相似度的库，能够在大规模数据集中快速找到与给定 query 向量最相似的向量。如下面示例所示：
-
-```python
-question="什么是机器学习"
-Copy to clipboardErrorCopied
-sim_docs = vectordb.similarity_search(question,k=3)
-print(f"检索到的内容数：{len(sim_docs)}")
-```
-
-```
-
-检索到的内容数：3
-```
-
-```
-for i, sim_doc in enumerate(sim_docs):
-    print(f"检索到的第{i}个内容: \n{sim_doc.page_content[:200]}", end="\n--------------\n")
-```
-
-```
-检索到的第0个内容: 
-导，同时也能体会到这三门数学课在机器学习上碰撞产生的“数学之美”。
-1.1
-引言
-本节以概念理解为主，在此对“算法”和“模型”作补充说明。“算法”是指从数据中学得“模型”的具
-体方法，例如后续章节中将会讲述的线性回归、对数几率回归、决策树等。“算法”产出的结果称为“模型”，
-通常是具体的函数或者可抽象地看作为函数，例如一元线性回归算法产出的模型即为形如 f(x) = wx + b
-
-的一元一次函数。
---------------
-
-检索到的第1个内容: 
-模型：机器学习的一般流程如下：首先收集若干样本（假设此时有 100 个），然后将其分为训练样本
-（80 个）和测试样本（20 个），其中 80 个训练样本构成的集合称为“训练集”，20 个测试样本构成的集合
-称为“测试集”，接着选用某个机器学习算法，让其在训练集上进行“学习”（或称为“训练”），然后产出
-
-得到“模型”（或称为“学习器”），最后用测试集来测试模型的效果。执行以上流程时，表示我们已经默
---------------
-
-检索到的第2个内容: 
-→_→
-欢迎去各大电商平台选购纸质版南瓜书《机器学习公式详解》
-←_←
-第 1 章
-绪论
-本章作为“西瓜书”的开篇，主要讲解什么是机器学习以及机器学习的相关数学符号，为后续内容作
-铺垫，并未涉及复杂的算法理论，因此阅读本章时只需耐心梳理清楚所有概念和数学符号即可。此外，在
-阅读本章前建议先阅读西瓜书目录前页的《主要符号表》，它能解答在阅读“西瓜书”过程中产生的大部
-分对数学符号的疑惑。
-本章也作为
-
-
-```
+通过上一章节文本的分割向量化以及构建向量数据库索引，接下去就可以利用向量数据库来进行高效的检索。向量数据库是一种用于有效搜索大规模高维向量空间中相似度的库，能够在大规模数据集中快速找到与给定 query 向量最相似的向量。
 
 #### 3.2 大模型llm的调用
 
@@ -667,32 +381,6 @@ self.qa_chain = RetrievalQA.from_chain_type(llm=self.llm,
 
 问答链效果如下：基于召回结果和 query 结合起来构建的 prompt 效果
 
-```python
-question_1 = "什么是南瓜书？"
-question_2 = "王阳明是谁？"Copy to clipboardErrorCopied
-```
-
-```
-result = qa_chain({"query": question_1})
-print("大模型+知识库后回答 question_1 的结果：")
-print(result["result"])
-```
-
-```
-大模型+知识库后回答 question_1 的结果：
-南瓜书是对《机器学习》（西瓜书）中难以理解的公式进行解析和补充推导细节的一本书。谢谢你的提问！
-```
-
-```
-result = qa_chain({"query": question_2})
-print("大模型+知识库后回答 question_2 的结果：")
-print(result["result"])
-```
-
-```
-大模型+知识库后回答 question_2 的结果：
-我不知道王阳明是谁，谢谢你的提问！
-```
 
 上述详细不带记忆的检索问答链代码都在该项目：**project/qa_chain/QA_chain_self.py** 中，此外该项目还实现了带记忆的检索问答链，两种自定义检索问答链内部实现细节类似，只是调用了不同的 LangChain 链。完整带记忆的检索问答链条代码 **project/qa_chain/Chat_QA_chain_self.py** 如下：
 
@@ -800,11 +488,11 @@ class Chat_QA_chain_self:
 # 3.总结与展望
 
 ## 3.1 个人知识库关键点总结
-该实例是一个基于大型语言模型（LLM）的个人知识库助手项目，通过智能检索和问答系统，帮助用户快速定位和获取与DATa whale相关的知识。以下是该项目的关键点：
+该实例是一个基于大型语言模型（LLM）的个人知识库助手项目，通过智能检索和问答系统，帮助用户快速定位和获取与知识库相关的知识。以下是该项目的关键点：
 
 **关键点一**
 
-1. 项目使用多种方法完成Datawhale中所有md文件的抽取与概括，生成对应的知识库。在完成md文件抽取与概括的同时，还是用相应的方法完成readme文本中网页链接和可能引起大模型风控词汇的过滤；
+1. 项目使用多种方法完成对文件的抽取与概括，生成对应的知识库。在完成对文件抽取与概括的同时，还是用相应的方法完成文本中网页链接和可能引起大模型风控词汇的过滤；
 
 2. 项目利用Langchain中的文本切割器完成知识库向量化操作前的文本分割，向量数据库使用高效的索引和查询算法来加速向量数据的存储和检索过程，快速的完成个人知识库数据建立与使用。
 
@@ -812,14 +500,3 @@ class Chat_QA_chain_self:
 **关键点二**
 
 项目对不同的API进行了底层封装，用户可以避免复杂的封装细节，直接调用相应的大语言模型即可。
-
-## 3.2 未来发展方向
-
-1. 用户体验升级：支持用户自主上传并建立个人知识库，构建属于自己的专属个人知识库助手；
-
-2. 模型架构升级：从 REG 的普遍架构升级到 Multi-Agent 的多智体框架；
-
-3. 功能优化升级：对现有结构内的检索函数进行优化，提高个人知识库的检索准确性。
-
-# 4.致谢
-在此感谢散师傅的[项目](https://github.com/sanbuphy/ChatWithDataWhale)中爬虫及总结部分。
