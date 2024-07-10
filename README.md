@@ -56,7 +56,7 @@
 **克隆储存库**
 
 ```shell
-git clone https://github.com/doyoulackw/Blackstone.git
+git clone -b master https://github.com/doyoulackw/Blackstone.git
 ```
 
 **创建 Conda 环境并安装依赖项**
@@ -66,9 +66,9 @@ git clone https://github.com/doyoulackw/Blackstone.git
 
 ```shell
 # 创建 Conda 环境
-conda create -n llm-universe python==3.9.0
+conda create -n llm python==3.9.0
 # 激活 Conda 环境
-conda activate llm-universe
+conda activate llm
 # 安装依赖项
 pip install -r requirements.txt
 ```
@@ -228,19 +228,13 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(r"../../")
 from embedding.zhipuai_embedding import ZhipuAIEmbeddings
-from langchain.embeddings.huggingface import HuggingFaceEmbeddings
-from langchain.embeddings.openai import OpenAIEmbeddings
 from llm.call_llm import parse_llm_api_key
 
 
 def get_embedding(embedding: str, embedding_key: str = None, env_file: str = None):
-   if embedding == 'm3e':
-      return HuggingFaceEmbeddings(model_name="moka-ai/m3e-base")
    if embedding_key == None:
       embedding_key = parse_llm_api_key(embedding)
-   if embedding == "openai":
-      return OpenAIEmbeddings(openai_api_key=embedding_key)
-   elif embedding == "zhipuai":
+   if embedding == "zhipuai":
       return ZhipuAIEmbeddings(zhipuai_api_key=embedding_key)
    else:
       raise ValueError(f"embedding {embedding} not support ")
@@ -316,11 +310,7 @@ def model_to_llm(model:str=None, temperature:float=0.0, appid:str=None, api_key:
         智谱：model,temperature,api_key
         OpenAI：model,temperature,api_key
         """
-        if model in ["gpt-3.5-turbo", "gpt-3.5-turbo-16k-0613", "gpt-3.5-turbo-0613", "gpt-4", "gpt-4-32k"]:
-            if api_key == None:
-                api_key = parse_llm_api_key("openai")
-            llm = ChatOpenAI(model_name = model, temperature = temperature , openai_api_key = api_key)
-        elif model in ["ERNIE-Bot", "ERNIE-Bot-4", "ERNIE-Bot-turbo"]:
+        if model in ["ERNIE-Bot", "ERNIE-Bot-4", "ERNIE-Bot-turbo"]:
             if api_key == None or Wenxin_secret_key == None:
                 api_key, Wenxin_secret_key = parse_llm_api_key("wenxin")
             llm = Wenxin_LLM(model=model, temperature = temperature, api_key=api_key, secret_key=Wenxin_secret_key)
