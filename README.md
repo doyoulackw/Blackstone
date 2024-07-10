@@ -30,17 +30,14 @@
 
 本项目可以实现基于 Datawhale 的现有项目 README 的知识问答，使用户可以快速了解 Datawhale 现有项目情况。
 
+**项目登录界面**
+![项目登录界面](./figures/entry.png)
+
 **项目开始界面**
-![项目开始界面](./figures/Start.png)
+![问答开始界面](./figures/Start.png)
 
 **问答演示界面**
-![问答演示界面](./figures/QA.png)
-
-**实例演示界面**
-1. ***介绍下 joyrl 演示***
-![介绍下joyrl](./figures/介绍下joyrl演示.png)
-2. ***joyrl-book 与 joyrl 是什么关系演示***
-![joyrl-book与joyrl是什么关系](./figures/joyrl-book与joyrl是什么关系演示.png)
+![问答演示界面](./figures/演示.png)
 
 ## 二、技术实现
 
@@ -60,8 +57,7 @@
 **克隆储存库**
 
 ```shell
-git clone https://github.com/logan-zou/Chat_with_Datawhale_langchain.git
-cd Chat_with_Datawhale_langchain
+git clone https://github.com/doyoulackw/Blackstone.git
 ```
 
 **创建 Conda 环境并安装依赖项**
@@ -110,12 +106,6 @@ python run_gradio.py -model_name='chatglm_std' -embedding_model='m3e' -db_path='
      - [√] 修复 gradio 显示错误
  
    - **目前支持的模型**
-     - OpenAi
-       - [√] gpt-3.5-turbo
-       - [√] gpt-3.5-turbo-16k-0613
-       - [√] gpt-3.5-turbo-0613
-       - [√] gpt-4
-       - [√] gpt-4-32k
      - 文心一言
        - [√] ERNIE-Bot
        - [√] ERNIE-Bot-4
@@ -160,9 +150,9 @@ python run_gradio.py -model_name='chatglm_std' -embedding_model='m3e' -db_path='
 
 llm-universe 个人知识库助手地址：
 
-https://github.com/datawhalechina/llm-universe/tree/main
+https://github.com/doyoulackw/Blackstone/tree/master
 
-该项目是个典型的RAG项目，通过langchain+LLM实现本地知识库问答，建立了全流程可使用开源模型实现的本地知识库对话应用。目前已经支持使用 ***ChatGPT***，***星火spark模型***，***文心大模型***，***智谱GLM*** 等大语言模型的接入。该项目实现原理和一般 RAG 项目一样，如前文和下图所示：![](./figures/rag.png)
+该项目是个典型的RAG项目，通过langchain+LLM实现本地知识库问答，建立了全流程可使用开源模型实现的本地知识库对话应用。目前已经支持使用 ***星火spark模型***，***文心大模型***，***智谱GLM*** 等大语言模型的接入。该项目实现原理和一般 RAG 项目一样，如前文和下图所示：![](./figures/rag.png)
 
 整个 RAG 过程包括如下操作：
 
